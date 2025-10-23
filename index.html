@@ -1,13 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Charity Water Game</title>
-    <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <title>Water Run</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <h1>Welcome to the Charity Water Game Prototype</h1>
-    <script src="script.js"></script>
+  <!-- Start Screen -->
+  <div id="start-screen" class="screen">
+    <h1>Water Run</h1>
+    <p class="subtitle">Built for charity: water.</p>
+    <button id="start-btn">Start Game</button>
+  </div>
+
+  <!-- Game Screen -->
+  <div id="game-screen" class="screen" style="display:none;">
+    <div id="hud">
+      <span id="distance">Distance: 0</span>
+      <span id="water">Water: 0</span>
+    </div>
+    <div id="game-area">
+      <!-- Stick figure, rocks, and water will be drawn here -->
+    </div>
+  </div>
+
+  <!-- Game Over Screen -->
+  <div id="gameover-screen" class="screen" style="display:none;">
+    <h2>Game Over!</h2>
+    <p id="final-distance"></p>
+    <p id="final-water"></p>
+    <p id="charity-fact"></p>
+    <p class="subtitle">Learn more at <a href="https://www.charitywater.org" target="_blank">Charity: Water</a></p>
+    <button id="play-again-btn">Play Again</button>
+  </div>
+
+  <script src="script.js"></script>
 </body>
 </html>
+
