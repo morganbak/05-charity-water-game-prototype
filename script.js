@@ -1,282 +1,298 @@
-// Log a message to the console to ensure the script is linked correctly
-console.log('JavaScript file is linked correctly.');
+//// script.js - Water Run (difficulty modes, DOM interactions, charity footer)
+// Author: updated integration for user
 
+console.log('script loaded — Water Run');
 
+// Elements
 const startScreen = document.getElementById('start-screen');
 const gameScreen = document.getElementById('game-screen');
 const gameArea = document.getElementById('game-area');
 const gameOverScreen = document.getElementById('gameover-screen');
 const startBtn = document.getElementById('start-btn');
 const playAgainBtn = document.getElementById('play-again-btn');
+const backToStartBtn = document.getElementById('back-to-start');
 const distanceDisplay = document.getElementById('distance');
 const waterDisplay = document.getElementById('water');
+const goalDisplay = document.getElementById('goal');
 const finalDistance = document.getElementById('final-distance');
 const finalWater = document.getElementById('final-water');
-const charityFact = document.getElementById('charity-fact');
+const waterFact = document.getElementById('waterFact');
+const goTitle = document.getElementById('go-title');
 
-// Charity: water facts
+const difficultyButtons = document.querySelectorAll('.difficulty');
+let difficulty = 'normal';
+
+// Difficulty config: speed px/frame, waterSpawn ms, goal water required
+const DIFFICULTY_CONFIG = {
+  easy:   { speed: 4, spawnMs: 2200, goal: 10 },
+  normal: { speed: 6, spawnMs: 1500, goal: 20 },
+  hard:   { speed: 9, spawnMs: 1000, goal: 30 }
+};
+
+// Game facts
 const facts = [
   "Every $40 can bring clean water to one person.",
-  "Charity: water has funded 91,414 water projects.",
-  "Clean water improves health and education.",
+  "Charity: water has funded tens of thousands of water projects globally.",
   "Women and children spend 200 million hours daily collecting water.",
-  "Access to clean water can transform entire communities."
+  "Access to clean water improves health and education for whole communities."
 ];
 
-// Game variables
+// Game state
 let distance = 0;
 let water = 0;
-let isJumping = false;
-let gameInterval;
-let rockPosition = 600;
-let waterPosition = 900;
-let stickY = 0; // 0 = ground, 1 = jumping
-let speed = 5; // Initial speed
-let jumpCooldown = false; // Prevent jump spamming
+let speed = DIFFICULTY_CONFIG.normal.speed;
+let waterSpawnMs = DIFFICULTY_CONFIG.normal.spawnMs;
+let goalWater = DIFFICULTY_CONFIG.normal.goal;
 
-// Show only the selected screen
+let gameInterval = null;
+let distanceInterval = null;
+let spawnTimer = null;
+
+// DOM objects that persist during a run
+let playerEl = null;
+let rockEl = null;
+let dropEl = null;
+let playerIsJumping = false;
+let jumpCooldown = false;
+
+// UI: difficulty selection
+difficultyButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    difficultyButtons.forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    difficulty = btn.dataset.mode;
+    const cfg = DIFFICULTY_CONFIG[difficulty];
+    goalDisplay.textContent = `Goal: ${cfg.goal} water`;
+    startBtn.disabled = false;
+  });
+});
+
+// initialize default HUD goal
+goalDisplay.textContent = `Goal: ${DIFFICULTY_CONFIG[difficulty].goal} water`;
+
+// Navigation between screens
 function showScreen(screen) {
-  startScreen.style.display = 'none';
-  gameScreen.style.display = 'none';
-  gameOverScreen.style.display = 'none';
+  [startScreen, gameScreen, gameOverScreen].forEach(s => s.style.display = 'none');
   screen.style.display = 'flex';
 }
 
-// Start game
-startBtn.onclick = function() {
+// Start game button
+startBtn.addEventListener('click', () => {
   showScreen(gameScreen);
   startGame();
-};
+});
 
 // Play again
-playAgainBtn.onclick = function() {
+playAgainBtn.addEventListener('click', () => {
   showScreen(gameScreen);
   startGame();
-};
+});
+backToStartBtn?.addEventListener('click', () => {
+  showScreen(startScreen);
+});
 
-// Start or restart the game
+// core game start
 function startGame() {
-  // Reset variables
+  clearAllTimers();
+  gameArea.innerHTML = '';
   distance = 0;
   water = 0;
-  stickY = 0;
-  rockPosition = 600;
-  waterPosition = 900;
-  isJumping = false;
-  updateHUD();
-  gameArea.innerHTML = ''; // Clear game area
-  speed = 5; // Reset speed at start
+  playerIsJumping = false;
+  jumpCooldown = false;
 
-  // Start game loop
-  gameInterval = setInterval(gameLoop, 30);
+  const cfg = DIFFICULTY_CONFIG[difficulty];
+  speed = cfg.speed;
+  waterSpawnMs = cfg.spawnMs;
+  goalWater = cfg.goal;
 
-  // Listen for jump (spacebar or click)
-  document.onkeydown = function(e) {
-    if (e.code === 'Space' && !isJumping) {
-      jump();
-    }
-  };
-  gameArea.onclick = function() {
-    if (!isJumping) {
-      jump();
-    }
-  };
-}
-
-// Game loop: moves obstacles, checks collisions, updates display
-function gameLoop() {
-  distance += 1;
   updateHUD();
 
-  // Gradually increase speed every 100 distance units
-  if (distance % 100 === 0 && speed < 20) {
-    speed += 0.5; // Increase speed, max out at 20
-  }
+  createGround();
+  createPlayer();
+  createRock();
+  spawnDropWithDelay(600 + Math.random() * 400);
 
-  // Move rock and water left
-  rockPosition -= speed;
-  waterPosition -= speed;
+  gameInterval = requestAnimationFrame(gameLoop);
 
-  // If rock goes off screen, reset position
-  if (rockPosition < -50) {
-    rockPosition = 600 + Math.random() * 200;
-  }
-  // If water goes off screen, reset position
-  if (waterPosition < -50) {
-    waterPosition = 600 + Math.random() * 400;
-  }
+  distanceInterval = setInterval(() => {
+    distance += 1;
+    updateHUD();
+    if (distance % 100 === 0 && speed < 24) {
+      speed += 0.3;
+    }
+  }, 30);
 
-  // Draw everything
-  drawGame();
-
-  // Check collision with rock
-  if (rockPosition < 60 && rockPosition > 0 && stickY === 0) {
-    endGame();
-  }
-
-  // Check collision with water
-  if (waterPosition < 60 && waterPosition > 0 && stickY === 0) {
-    water += 1;
-    waterPosition = 600 + Math.random() * 400;
-  }
+  document.onkeydown = (e) => {
+    if (e.code === 'Space') {
+      e.preventDefault();
+      triggerJump();
+    }
+  };
+  gameArea.onclick = () => triggerJump();
 }
 
-// Draw stick figure, ground, rock, and water
-function drawGame() {
-  // Clear game area
-  gameArea.innerHTML = '';
+function clearAllTimers() {
+  if (gameInterval) { cancelAnimationFrame(gameInterval); gameInterval = null; }
+  if (distanceInterval) { clearInterval(distanceInterval); distanceInterval = null; }
+  if (spawnTimer) { clearTimeout(spawnTimer); spawnTimer = null; }
+}
 
-  // Draw ground (sand color)
+// DOM constructors
+function createGround() {
   const ground = document.createElement('div');
   ground.className = 'ground';
   gameArea.appendChild(ground);
+}
 
-  // Draw stick figure
-  const stick = document.createElement('div');
-  stick.style.position = 'absolute';
-  stick.style.left = '40px';
-  stick.style.bottom = stickY === 0 ? '96px' : '276px'; // ground height + jump height
-  stick.style.width = '4px';
-  stick.style.height = '48px';
-  stick.style.background = 'black';
-  stick.style.borderRadius = '2px';
-
-  // Head
+function createPlayer() {
+  playerEl = document.createElement('div');
+  playerEl.className = 'player';
   const head = document.createElement('div');
-  head.style.width = '18px';
-  head.style.height = '18px';
-  head.style.background = '#68b6ffff';
-  head.style.borderRadius = '50%';
-  head.style.position = 'absolute';
-  head.style.left = '-7px';
-  head.style.top = '-20px';
-  stick.appendChild(head);
-
-  // Arms
-  const leftArm = document.createElement('div');
-  leftArm.style.width = '22px';
-  leftArm.style.height = '4px';
-  leftArm.style.background = 'black';
-  leftArm.style.position = 'absolute';
-  leftArm.style.left = '-18px';
-  leftArm.style.top = '12px';
-  leftArm.style.transform = 'rotate(-25deg)';
-  leftArm.style.borderRadius = '2px';
-  stick.appendChild(leftArm);
-
-  const rightArm = document.createElement('div');
-  rightArm.style.width = '22px';
-  rightArm.style.height = '4px';
-  rightArm.style.background = 'black';
-  rightArm.style.position = 'absolute';
-  rightArm.style.left = '0px';
-  rightArm.style.top = '12px';
-  rightArm.style.transform = 'rotate(25deg)';
-  rightArm.style.borderRadius = '2px';
-  stick.appendChild(rightArm);
-
-  // Legs
-  const leftLeg = document.createElement('div');
-  leftLeg.style.width = '18px';
-  leftLeg.style.height = '4px';
-  leftLeg.style.background = 'black';
-  leftLeg.style.position = 'absolute';
-  leftLeg.style.left = '-14px';
-  leftLeg.style.top = '40px';
-  leftLeg.style.transform = 'rotate(-20deg)';
-  leftLeg.style.borderRadius = '2px';
-  stick.appendChild(leftLeg);
-
-  const rightLeg = document.createElement('div');
-  rightLeg.style.width = '18px';
-  rightLeg.style.height = '4px';
-  rightLeg.style.background = 'black';
-  rightLeg.style.position = 'absolute';
-  rightLeg.style.left = '4px';
-  rightLeg.style.top = '40px';
-  rightLeg.style.transform = 'rotate(20deg)';
-  rightLeg.style.borderRadius = '2px';
-  stick.appendChild(rightLeg);
-
-  gameArea.appendChild(stick);
-
-  // Draw rock (with bumps and polygon shape)
-  const rock = document.createElement('div');
-  rock.className = 'rock';
-  rock.style.left = `${rockPosition}px`;
-  rock.style.bottom = '96px';
-  // Main body
-  const rockBody = document.createElement('div');
-  rockBody.className = 'rock-body';
-  rock.appendChild(rockBody);
-  // Small bump 1
-  const bump1 = document.createElement('div');
-  bump1.className = 'rock-bump1';
-  rock.appendChild(bump1);
-  // Small bump 2
-  const bump2 = document.createElement('div');
-  bump2.className = 'rock-bump2';
-  rock.appendChild(bump2);
-  gameArea.appendChild(rock);
-
-  // Draw water droplet (droplet shape)
-  const drop = document.createElement('div');
-  drop.style.position = 'absolute';
-  drop.style.left = `${waterPosition}px`;
-  drop.style.bottom = '136px';
-  drop.style.width = '24px';
-  drop.style.height = '32px';
-  drop.style.background = 'linear-gradient(180deg, #4fc3f7 60%, #00bcd4 100%)';
-  drop.style.borderRadius = '50% 50% 60% 60% / 60% 60% 100% 100%';
-  drop.style.boxShadow = '0 4px 12px #81d4fa inset';
-  drop.style.borderBottom = '4px solid #1976d2';
-  // Add a highlight
-  const highlight = document.createElement('div');
-  highlight.style.position = 'absolute';
-  highlight.style.left = '6px';
-  highlight.style.top = '6px';
-  highlight.style.width = '8px';
-  highlight.style.height = '12px';
-  highlight.style.background = 'rgba(255,255,255,0.6)';
-  highlight.style.borderRadius = '50%';
-  drop.appendChild(highlight);
-  gameArea.appendChild(drop);
+  head.className = 'head';
+  playerEl.appendChild(head);
+  playerEl.style.left = '40px';
+  playerEl.style.bottom = '96px';
+  gameArea.appendChild(playerEl);
 }
 
-// Make the stick figure jump
-function jump() {
-  // Prevent jumping if already jumping or in cooldown
-  if (isJumping || jumpCooldown) {
-    return;
+function createRock() {
+  rockEl = document.createElement('div');
+  rockEl.className = 'rock';
+  rockEl.style.left = `${gameArea.clientWidth + 40}px`;
+  gameArea.appendChild(rockEl);
+  resetRockPosition();
+}
+
+function createDrop(initialLeft) {
+  if (dropEl) return;
+  dropEl = document.createElement('div');
+  dropEl.className = 'water-drop';
+  dropEl.style.left = (initialLeft !== undefined) ? `${initialLeft}px` : `${gameArea.clientWidth + 80}px`;
+  gameArea.appendChild(dropEl);
+}
+
+function resetRockPosition() {
+  const startX = gameArea.clientWidth + 80 + Math.random() * 260;
+  rockEl.style.left = `${startX}px`;
+}
+
+function spawnDropWithDelay(delayMs) {
+  if (spawnTimer) clearTimeout(spawnTimer);
+  spawnTimer = setTimeout(() => {
+    const startX = gameArea.clientWidth + 60 + Math.random() * 400;
+    createDrop(startX);
+    spawnTimer = null;
+  }, delayMs);
+}
+
+// Game loop
+function gameLoop() {
+  if (rockEl) {
+    const currentLeft = parseFloat(rockEl.style.left || rockEl.getBoundingClientRect().left);
+    const newLeft = currentLeft - speed;
+    rockEl.style.left = `${newLeft}px`;
+    if (newLeft < -80) resetRockPosition();
   }
-  isJumping = true;
-  jumpCooldown = true;
-  stickY = 1;
-  drawGame();
-  setTimeout(() => {
-    stickY = 0;
-    isJumping = false;
-    drawGame();
-    // Add a brief cooldown after landing (300ms)
-    setTimeout(() => {
-      jumpCooldown = false;
-    }, 300);
-  }, 600); // Jump lasts 600ms
+
+  if (dropEl) {
+    const currentLeft = parseFloat(dropEl.style.left || dropEl.getBoundingClientRect().left);
+    const newLeft = currentLeft - speed;
+    dropEl.style.left = `${newLeft}px`;
+    if (newLeft < -60) {
+      dropEl.remove();
+      dropEl = null;
+      spawnDropWithDelay(600 + Math.random() * waterSpawnMs);
+    }
+  }
+
+  checkCollisions();
+  gameInterval = requestAnimationFrame(gameLoop);
 }
 
-// Update distance and water count
+function pxToNum(px) {
+  return parseFloat(px.replace('px','')) || 0;
+}
+
+function checkCollisions() {
+  const playerLeft = pxToNum(playerEl.style.left || '40px');
+  const playerBottom = pxToNum(playerEl.style.bottom || '96px');
+  const playerFront = playerLeft + 10;
+  const playerBack = playerLeft - 6;
+  const playerFeetOnGround = playerBottom <= 100;
+
+  if (rockEl) {
+    const rockLeft = pxToNum(rockEl.style.left);
+    const rockRight = rockLeft + rockEl.offsetWidth;
+    if (playerFeetOnGround && rangesOverlap(playerBack, playerFront, rockLeft, rockRight)) {
+      setTimeout(() => endGame(false), 0);
+      return;
+    }
+  }
+
+  if (dropEl) {
+    const dropLeft = pxToNum(dropEl.style.left);
+    const dropRight = dropLeft + dropEl.offsetWidth;
+    if (playerFeetOnGround && rangesOverlap(playerBack, playerFront, dropLeft, dropRight)) {
+      collectDrop();
+    }
+  }
+}
+
+function rangesOverlap(a1, a2, b1, b2) {
+  return !(a2 < b1 || b2 < a1);
+}
+
+function collectDrop() {
+  if (!dropEl) return;
+  dropEl.remove();
+  dropEl = null;
+  water += 1;
+  updateHUD();
+
+  if (water >= goalWater) {
+    setTimeout(() => endGame(true), 0);
+  } else {
+    spawnDropWithDelay(300 + Math.random() * waterSpawnMs);
+  }
+}
+
+function triggerJump() {
+  if (playerIsJumping || jumpCooldown) return;
+  playerIsJumping = true;
+  jumpCooldown = true;
+  playerEl.style.bottom = '276px';
+  setTimeout(() => {
+    playerEl.style.bottom = '96px';
+    playerIsJumping = false;
+    setTimeout(() => { jumpCooldown = false; }, 200);
+  }, 600);
+}
+
 function updateHUD() {
   distanceDisplay.textContent = `Distance: ${distance} m`;
   waterDisplay.textContent = `Water: ${water}`;
+  goalDisplay.textContent = `Goal: ${goalWater} water`;
 }
 
-// End the game and show Game Over screen
-function endGame() {
-  clearInterval(gameInterval);
+// End game / win
+function endGame(didWin = false) {
+  clearAllTimers();
   document.onkeydown = null;
   gameArea.onclick = null;
-  finalDistance.textContent = `Total Distance: ${distance}`;
-  finalWater.textContent = `Water Collected: ${water}`;
-  charityFact.textContent = facts[Math.floor(Math.random() * facts.length)];
-  showScreen(gameOverScreen);
+
+  finalDistance.textContent = `Total Distance: ${distance} m`;
+  finalWater.textContent = `Water Collected: ${water} / ${goalWater}`;
+
+  const randomIndex = Math.floor(Math.random() * facts.length);
+  waterFact.textContent = facts[randomIndex];
+
+  if (didWin) {
+    goTitle.textContent = 'You Did It! 🎉';
+    goTitle.style.color = '#159A48';
+  } else {
+    goTitle.textContent = 'Game Over!';
+    goTitle.style.color = '#f5402c';
+  }
+
+  setTimeout(() => showScreen(gameOverScreen), 0);
 }

@@ -1,40 +1,61 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Water Run</title>
-  <link rel="stylesheet" href="styles.css">
+  <!-- Montserrat (clean, close to charity: water brand feel) -->
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <!-- Start Screen -->
   <div id="start-screen" class="screen">
     <h1>Water Run</h1>
-    <p class="subtitle">Built for charity: water.</p>
-    <button id="start-btn">Start Game</button>
+    <p class="subtitle">Built to support <strong>charity: water</strong></p>
+
+    <div class="difficulty-panel">
+      <p class="label">Choose Difficulty</p>
+      <div class="difficulty-buttons">
+        <button class="difficulty" data-mode="easy">Easy</button>
+        <button class="difficulty selected" data-mode="normal">Normal</button>
+        <button class="difficulty" data-mode="hard">Hard</button>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="start-btn">Start Game</button>
+      <p class="hint">Jump with <kbd>Space</kbd> or click/tap the game area. Run into water to collect it — jump to avoid rocks.</p>
+    </div>
   </div>
 
   <!-- Game Screen -->
   <div id="game-screen" class="screen" style="display:none;">
     <div id="hud">
-      <span id="distance">Distance: 0</span>
+      <span id="distance">Distance: 0 m</span>
       <span id="water">Water: 0</span>
+      <span id="goal" style="opacity:0.9"></span>
     </div>
-    <div id="game-area">
-      <!-- Stick figure, rocks, and water will be drawn here -->
-    </div>
+    <div id="game-area" aria-label="Game area"></div>
   </div>
 
   <!-- Game Over Screen -->
   <div id="gameover-screen" class="screen" style="display:none;">
-    <h2>Game Over!</h2>
+    <h2 id="go-title">Game Over!</h2>
     <p id="final-distance"></p>
     <p id="final-water"></p>
     <p id="charity-fact"></p>
-    <p class="subtitle">Learn more at <a href="https://www.charitywater.org" target="_blank">Charity: Water</a></p>
-    <button id="play-again-btn">Play Again</button>
+    <p class="subtitle">Learn more at <a href="https://www.charitywater.org" target="_blank" rel="noopener">charity: water</a></p>
+    <div class="controls">
+      <button id="play-again-btn">Play Again</button>
+      <button id="back-to-start">Back</button>
+    </div>
   </div>
+
+  <!-- Footer with charity links -->
+  <footer>
+    <p>Inspired by <a href="https://www.charitywater.org" target="_blank" rel="noopener">charity: water</a> — <a href="https://www.charitywater.org/donate" target="_blank" rel="noopener">Donate here</a> to help bring clean water to communities in need.</p>
+  </footer>
 
   <script src="script.js"></script>
 </body>
 </html>
-
